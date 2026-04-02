@@ -533,8 +533,25 @@ def _impact_flags_from_text(text: str) -> dict[str, bool]:
     }
 
 
-def _fmt_bool(v: bool) -> str:
+def _fmt_bool(v: bool, lang: str = "vi") -> str:
+    if lang == "vi":
+        return "Có" if v else "Không rõ"
+    if lang == "en":
+        return "Yes" if v else "Unclear"
     return "Có" if v else "Không rõ"
+
+
+def _map_level(level: str, lang: str = "vi") -> str:
+    raw = (level or "").strip().lower()
+    if lang == "vi":
+        if raw in ("高", "high", "cao"):
+            return "Cao"
+        if raw in ("中", "medium", "trung", "trung bình"):
+            return "Trung bình"
+        if raw in ("低", "low", "thấp"):
+            return "Thấp"
+        return level or "N/A"
+    return level or "N/A"
 
 
 def notify_node(state: PipelineState) -> PipelineState:
@@ -552,6 +569,7 @@ def notify_node(state: PipelineState) -> PipelineState:
         return {}
 
     adapter = _get_runtime().notify_adapter
+    lang = (settings.notify_lang or "vi").lower()
 
     for i, p in enumerate(payloads):
         report = reports[i] if i < len(reports) else None
@@ -582,22 +600,25 @@ def notify_node(state: PipelineState) -> PipelineState:
         flag_text = " | ".join(flags) if flags else "normal"
 
         score = f"{report.final_score:.1f}" if report else "N/A"
-        level = report.impact_level if report else "N/A"
+        raw_level = report.impact_level if report else "N/A"
+        level = _map_level(raw_level, lang)
 
         msg = (
             f"[{score}] [{level}] {flag_text}\n"
             f"{title}\n"
-            f"Tác động thị trường: XAU {_fmt_bool(impacts['xau'])} - "
-            f"Tiền điện tử {_fmt_bool(impacts['crypto'])} - "
-            f"Dầu {_fmt_bool(impacts['oil'])} - "
-            f"Cộng đồng {_fmt_bool(impacts['community'])}\n"
+            f"Tác động thị trường: XAU {_fmt_bool(impacts['xau'], lang)} - "
+            f"Tiền điện tử {_fmt_bool(impacts['crypto'], lang)} - "
+            f"Dầu {_fmt_bool(impacts['oil'], lang)} - "
+            f"Cộng đồng {_fmt_bool(impacts['community'], lang)}\n"
             f"Xem link gốc: {url or 'N/A'}"
         )
 
         meta = {
             "index": i,
             "score": report.final_score if report else None,
-            "level": report.impact_level if report else None,
+            "level": level,
+            "level_raw": raw_level,
+            "lang": lang,
             "flags": flags,
             "impacts": impacts,
             "news": {

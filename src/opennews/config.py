@@ -52,6 +52,7 @@ class Settings:
     notify_webhook_enabled: bool = os.getenv("NOTIFY_WEBHOOK_ENABLED", "false").lower() in ("true", "1", "yes")
     webhook_url: str = os.getenv("WEBHOOK_URL", "")
     notify_timeout_sec: int = int(os.getenv("NOTIFY_TIMEOUT_SEC", "15"))
+    notify_lang: str = os.getenv("NOTIFY_LANG", "vi")
 
     # 配置文件路径
     llm_config_path: str = os.getenv("LLM_CONFIG_PATH", "config/llm.yaml")

@@ -201,6 +201,7 @@ All settings can be overridden via environment variables.
 | `NOTIFY_WEBHOOK_ENABLED` | Send notify to webhook | `false` |
 | `WEBHOOK_URL` | Webhook endpoint URL | — |
 | `NOTIFY_TIMEOUT_SEC` | Notify HTTP timeout | `15` |
+| `NOTIFY_LANG` | Notify message language (`vi`/`en`) | `vi` |
 
 Additional config files:
 - `config/sources.yaml` — News source endpoints and channels
