@@ -519,37 +519,100 @@ def report_node(state: PipelineState) -> PipelineState:
     return {"reports": reports, "payloads": payloads}
 
 
+def _impact_flags_from_text(text: str) -> dict[str, bool]:
+    t = (text or "").lower()
+    xau = any(k in t for k in ["xau", "gold", "vàng", "fed", "yield", "cpi", "lãi suất", "usd"])
+    crypto = any(k in t for k in ["btc", "bitcoin", "eth", "ethereum", "crypto", "tiền điện tử", "stablecoin"])
+    oil = any(k in t for k in ["oil", "dầu", "brent", "wti", "opec"])
+    community = any(k in t for k in ["twitter", "x.com", "telegram", "reddit", "weibo", "community", "cộng đồng", "sentiment"])
+    return {
+        "xau": xau,
+        "crypto": crypto,
+        "oil": oil,
+        "community": community,
+    }
+
+
+def _fmt_bool(v: bool) -> str:
+    return "Có" if v else "Không rõ"
+
+
 def notify_node(state: PipelineState) -> PipelineState:
-    """Send concise pipeline summary to Telegram/Webhook if enabled."""
+    """Send per-news notification after each item is processed in the run.
+
+    Format (requested):
+    [Điểm trung bình] [Mức độ] Các flag
+    Tóm tắt tin
+    Tác động thị trường XAU - Tiền điện tử - Dầu - Cộng đồng
+    Xem link gốc [link]
+    """
     payloads = state.get("payloads", [])
     reports = state.get("reports", [])
     if not payloads:
         return {}
 
-    top = None
-    if reports:
-        top = max(reports, key=lambda r: r.final_score)
+    adapter = _get_runtime().notify_adapter
 
-    text = [
-        "OpenNews run completed.",
-        f"- items: {len(payloads)}",
-        f"- reports: {len(reports)}",
-    ]
-    if top:
-        text.append(f"- top impact: {top.final_score:.1f}/100 ({top.impact_level})")
-        text.append(f"- top news_id: {top.news_id}")
+    for i, p in enumerate(payloads):
+        report = reports[i] if i < len(reports) else None
+        news = p.news or {}
+        title = (news.get("title") or "(không có tiêu đề)").strip()
+        url = (news.get("url") or "").strip()
+        content = (news.get("content") or "").strip()
 
-    msg = "\n".join(text)
-    meta = {
-        "items": len(payloads),
-        "reports": len(reports),
-        "top": top.to_dict() if top else None,
-    }
+        scan_text = "\n".join([
+            title,
+            content,
+            report.markdown if report else "",
+        ])
+        impacts = _impact_flags_from_text(scan_text)
 
-    try:
-        _get_runtime().notify_adapter.send(msg, meta)
-    except Exception:
-        logger.exception("notify_node failed")
+        # Flags from report/classification/features
+        flags = []
+        clf = p.classification or {}
+        if clf.get("category"):
+            flags.append(f"cat:{clf.get('category')}")
+        feat = p.features or {}
+        if (feat.get("regulatory_risk") or 0) >= 4:
+            flags.append("policy-risk")
+        if (feat.get("market_impact") or 0) >= 4:
+            flags.append("market-impact")
+        if report and report.final_score >= 75:
+            flags.append("high-impact")
+        flag_text = " | ".join(flags) if flags else "normal"
+
+        score = f"{report.final_score:.1f}" if report else "N/A"
+        level = report.impact_level if report else "N/A"
+
+        msg = (
+            f"[{score}] [{level}] {flag_text}\n"
+            f"{title}\n"
+            f"Tác động thị trường: XAU {_fmt_bool(impacts['xau'])} - "
+            f"Tiền điện tử {_fmt_bool(impacts['crypto'])} - "
+            f"Dầu {_fmt_bool(impacts['oil'])} - "
+            f"Cộng đồng {_fmt_bool(impacts['community'])}\n"
+            f"Xem link gốc: {url or 'N/A'}"
+        )
+
+        meta = {
+            "index": i,
+            "score": report.final_score if report else None,
+            "level": report.impact_level if report else None,
+            "flags": flags,
+            "impacts": impacts,
+            "news": {
+                "news_id": news.get("news_id"),
+                "title": title,
+                "url": url,
+                "source": news.get("source"),
+                "published_at": news.get("published_at"),
+            },
+        }
+
+        try:
+            adapter.send(msg, meta)
+        except Exception:
+            logger.exception("notify send failed for item idx=%d news_id=%s", i, news.get("news_id"))
 
     return {}
 
