@@ -13,3 +13,5 @@ node_modules/
 web/dist/
 *.local
 .worktrees/
+.env
+.hfprep/

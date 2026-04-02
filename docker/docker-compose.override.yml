@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.runtime
+    # allow online HF downloads on first run if cache missing
+    environment:
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
+    volumes:
+      # read-write cache (first run will download models)
+      - ${HF_HOME:-/home/quyt/.cache/huggingface}:/root/.cache/huggingface
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.runtime
+    volumes:
+      - ${HF_HOME:-/home/quyt/.cache/huggingface}:/root/.cache/huggingface
