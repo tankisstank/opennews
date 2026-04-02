@@ -194,10 +194,34 @@ All settings can be overridden via environment variables.
 | `LLM_API_KEY` | LLM API key for topic refinement | — |
 | `LLM_BASE_URL` | LLM endpoint (OpenAI-compatible) | — |
 | `LLM_MODEL` | LLM model name | `gpt-4o-mini` |
+| `NOTIFY_ENABLED` | Enable notify adapter | `false` |
+| `NOTIFY_TELEGRAM_ENABLED` | Send notify to Telegram | `false` |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token for notify | — |
+| `TELEGRAM_CHAT_ID` | Telegram chat id for notify | — |
+| `NOTIFY_WEBHOOK_ENABLED` | Send notify to webhook | `false` |
+| `WEBHOOK_URL` | Webhook endpoint URL | — |
+| `NOTIFY_TIMEOUT_SEC` | Notify HTTP timeout | `15` |
 
 Additional config files:
 - `config/sources.yaml` — News source endpoints and channels
 - `config/llm.yaml` — LLM provider settings and topic refinement prompts
+
+### Notify Adapter (Telegram / Webhook)
+
+After report generation, the pipeline can send a concise run summary to Telegram and/or a generic webhook.
+
+Minimal example:
+
+```bash
+export NOTIFY_ENABLED=true
+export NOTIFY_TELEGRAM_ENABLED=true
+export TELEGRAM_BOT_TOKEN=<your_bot_token>
+export TELEGRAM_CHAT_ID=<chat_id>
+
+# Optional webhook in parallel
+export NOTIFY_WEBHOOK_ENABLED=true
+export WEBHOOK_URL=https://example.com/notify
+```
 
 ## News Input
 

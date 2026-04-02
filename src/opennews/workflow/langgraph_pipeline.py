@@ -38,6 +38,7 @@ from opennews.nlp.entity_extractor import EntityExtractor
 from opennews.topic.online_topic_model import OnlineTopicModel
 from opennews.agents.topic_refine_agent import TopicRefineAgent
 from opennews.llm.client import LLMConfig
+from opennews.notify import NotifyAdapter, NotifyConfig
 
 
 class PipelineState(TypedDict, total=False):
@@ -94,6 +95,19 @@ class PipelineRuntime:
             weight_sentiment=settings.report_weight_sentiment,
             weight_policy=settings.report_weight_policy,
             weight_spread=settings.report_weight_spread,
+        )
+    )
+    notify_adapter: NotifyAdapter = field(
+        default_factory=lambda: NotifyAdapter(
+            NotifyConfig(
+                enabled=settings.notify_enabled,
+                telegram_enabled=settings.notify_telegram_enabled,
+                telegram_bot_token=settings.telegram_bot_token,
+                telegram_chat_id=settings.telegram_chat_id,
+                webhook_enabled=settings.notify_webhook_enabled,
+                webhook_url=settings.webhook_url,
+                timeout_sec=settings.notify_timeout_sec,
+            )
         )
     )
     graph_client: Neo4jGraphClient = field(
@@ -505,6 +519,41 @@ def report_node(state: PipelineState) -> PipelineState:
     return {"reports": reports, "payloads": payloads}
 
 
+def notify_node(state: PipelineState) -> PipelineState:
+    """Send concise pipeline summary to Telegram/Webhook if enabled."""
+    payloads = state.get("payloads", [])
+    reports = state.get("reports", [])
+    if not payloads:
+        return {}
+
+    top = None
+    if reports:
+        top = max(reports, key=lambda r: r.final_score)
+
+    text = [
+        "OpenNews run completed.",
+        f"- items: {len(payloads)}",
+        f"- reports: {len(reports)}",
+    ]
+    if top:
+        text.append(f"- top impact: {top.final_score:.1f}/100 ({top.impact_level})")
+        text.append(f"- top news_id: {top.news_id}")
+
+    msg = "\n".join(text)
+    meta = {
+        "items": len(payloads),
+        "reports": len(reports),
+        "top": top.to_dict() if top else None,
+    }
+
+    try:
+        _get_runtime().notify_adapter.send(msg, meta)
+    except Exception:
+        logger.exception("notify_node failed")
+
+    return {}
+
+
 def build_pipeline():
     g = StateGraph(PipelineState)
     # 重试之前失败的主题标签翻译
@@ -522,8 +571,9 @@ def build_pipeline():
     # Step3: 时序记忆 & 趋势
     g.add_node("memory_ingest", memory_ingest_node)
     g.add_node("update_trends", update_trends_node)
-    # Step4: 报告生成 + 图谱写入
+    # Step4: 报告生成 + 通知 + 图谱写入
     g.add_node("report", report_node)
+    g.add_node("notify", notify_node)
     g.add_node("write_graph", write_graph_node)
 
     g.set_entry_point("retry_labels")
@@ -545,7 +595,8 @@ def build_pipeline():
     # Step4: report 需要 trends → dump_output 在 report 之后写入 PG（含完整 report）
     g.add_edge("update_trends", "report")
     g.add_edge("report", "dump_output")
-    g.add_edge("dump_output", "write_graph")
+    g.add_edge("dump_output", "notify")
+    g.add_edge("notify", "write_graph")
     g.add_edge("write_graph", END)
     return g.compile()
 

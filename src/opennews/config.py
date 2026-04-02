@@ -44,6 +44,15 @@ class Settings:
 
     checkpoint_file: str = os.getenv("CHECKPOINT_FILE", "seeds/checkpoint.json")
 
+    # Notify adapter (Telegram / Webhook)
+    notify_enabled: bool = os.getenv("NOTIFY_ENABLED", "false").lower() in ("true", "1", "yes")
+    notify_telegram_enabled: bool = os.getenv("NOTIFY_TELEGRAM_ENABLED", "false").lower() in ("true", "1", "yes")
+    telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    notify_webhook_enabled: bool = os.getenv("NOTIFY_WEBHOOK_ENABLED", "false").lower() in ("true", "1", "yes")
+    webhook_url: str = os.getenv("WEBHOOK_URL", "")
+    notify_timeout_sec: int = int(os.getenv("NOTIFY_TIMEOUT_SEC", "15"))
+
     # 配置文件路径
     llm_config_path: str = os.getenv("LLM_CONFIG_PATH", "config/llm.yaml")
     sources_config_path: str = os.getenv("SOURCES_CONFIG_PATH", "config/sources.yaml")
