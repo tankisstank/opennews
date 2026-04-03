@@ -33,6 +33,7 @@ from opennews.ingest.news_fetcher import (
 from opennews.ingest.seed_injector import RealtimeSeedInjector
 from opennews.ingest.sources import SourcesConfig
 from opennews.memory import MemoryRecord, RedisMemoryStore
+from opennews.notify.models import NewsProcessedEvent, PipelineRunSummary
 from opennews.nlp.embedder import TextEmbedder
 from opennews.nlp.entity_extractor import EntityExtractor
 from opennews.topic.online_topic_model import OnlineTopicModel
@@ -54,6 +55,11 @@ class PipelineState(TypedDict, total=False):
     topic_trends: dict[int, TopicTrend]
     # Step4: 影响评估报告
     reports: list[NewsReport]
+    batch_id: int | None
+    batch_ts: str
+    record_count: int
+    news_events: list[NewsProcessedEvent]
+    completed_at: str
     result: str
 
 
@@ -326,6 +332,31 @@ def build_payload_node(state: PipelineState) -> PipelineState:
     return {"payloads": payloads}
 
 
+def _build_news_processed_events(
+    *,
+    batch_id: int | None,
+    batch_ts: str,
+    records: list[dict],
+    completed_at: str,
+) -> list[NewsProcessedEvent]:
+    events: list[NewsProcessedEvent] = []
+    for index, record in enumerate(records):
+        news = record.get("news") or {}
+        news_id = news.get("news_id") or news.get("url") or f"{batch_ts}-{index}"
+        event = NewsProcessedEvent(
+            batch_id=batch_id,
+            batch_ts=batch_ts,
+            news_id=str(news_id),
+            news_url=news.get("url"),
+            title=news.get("title"),
+            source=news.get("source"),
+            published_at=news.get("published_at"),
+            completed_at=completed_at,
+        ).with_template_context()
+        events.append(event)
+    return events
+
+
 def dump_output_node(state: PipelineState) -> PipelineState:
     """每轮把解析结果（含 report）写入 PostgreSQL。"""
     payloads = state.get("payloads", [])
@@ -354,10 +385,20 @@ def dump_output_node(state: PipelineState) -> PipelineState:
             "report": p.report if p.report else None,
         })
 
+    batch_id: int | None = None
+    inserted_records: list[dict] = []
+    completed_at = datetime.now(timezone.utc).isoformat()
     try:
         ensure_pg_schema()
-        batch_id = insert_batch(ts, records)
-        logger.info("dumped %d records to PostgreSQL (batch_id=%d, ts=%s)", len(records), batch_id, ts)
+        insert_result = insert_batch(ts, records)
+        batch_id = insert_result.batch_id
+        inserted_records = insert_result.inserted_records
+        logger.info(
+            "dumped %d records to PostgreSQL (batch_id=%d, ts=%s)",
+            insert_result.record_count,
+            batch_id,
+            ts,
+        )
 
         # 写入 reports 表
         if reports:
@@ -376,7 +417,18 @@ def dump_output_node(state: PipelineState) -> PipelineState:
     except Exception:
         logger.exception("failed to dump batch to PostgreSQL")
 
-    return {}
+    return {
+        "batch_id": batch_id,
+        "batch_ts": ts,
+        "record_count": len(inserted_records),
+        "news_events": _build_news_processed_events(
+            batch_id=batch_id,
+            batch_ts=ts,
+            records=inserted_records,
+            completed_at=completed_at,
+        ),
+        "completed_at": completed_at,
+    }
 
 
 def write_graph_node(state: PipelineState) -> PipelineState:
@@ -550,7 +602,17 @@ def build_pipeline():
     return g.compile()
 
 
-def run_once() -> str:
+def run_once() -> PipelineRunSummary:
     app = build_pipeline()
     out = app.invoke({})
-    return out.get("result", "done")
+    result = out.get("result", "done")
+    return PipelineRunSummary(
+        status="success",
+        result=result,
+        batch_id=out.get("batch_id"),
+        batch_ts=out.get("batch_ts"),
+        record_count=out.get("record_count", 0),
+        news_events=out.get("news_events", []),
+        graph_status=result,
+        completed_at=out.get("completed_at") or datetime.now(timezone.utc).isoformat(),
+    )

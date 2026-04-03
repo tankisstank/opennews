@@ -7,7 +7,8 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from opennews.config import settings
 from opennews.db import ensure_schema as ensure_pg_schema
 from opennews.ingest.sources import SourcesConfig
-from opennews.workflow.langgraph_pipeline import run_once
+from opennews.notify.models import PipelineRunSummary
+from opennews.notify.service import build_notification_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,10 +17,28 @@ logging.basicConfig(
 logger = logging.getLogger("opennews.scheduler")
 
 
+def dispatch_notifications(result: PipelineRunSummary) -> None:
+    try:
+        dispatch_summary = build_notification_service().dispatch_summary(result)
+        if dispatch_summary.skipped_reason:
+            logger.info("notification dispatch skipped: %s", dispatch_summary.skipped_reason)
+        else:
+            logger.info(
+                "notification dispatch complete: attempts=%d delivered=%d",
+                dispatch_summary.total_attempts,
+                dispatch_summary.delivered_count,
+            )
+    except Exception:
+        logger.exception("notification dispatch failed")
+
+
 def job() -> None:
     try:
+        from opennews.workflow.langgraph_pipeline import run_once
+
         result = run_once()
-        logger.info("pipeline success: %s", result)
+        logger.info("pipeline success: %s", result.result)
+        dispatch_notifications(result)
     except Exception as e:
         logger.exception("pipeline failed: %s", e)
 

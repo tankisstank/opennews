@@ -203,6 +203,70 @@ All settings can be overridden by environment variables.
 | `SHARE_CACHE_DIR` | `data/share` | PNG cache directory |
 | `SHARE_RENDER_TIMEOUT_MS` | `15000` | Render timeout |
 
+### Notifications
+
+| Variable | Default | Description |
+|---|---|---|
+| `NOTIFICATIONS_ENABLED` | `false` | Master switch for per-news notifications |
+| `NOTIFICATION_TIMEOUT_SECONDS` | `5` | Outbound timeout per delivery attempt |
+| `NOTIFICATION_MAX_ATTEMPTS` | `2` | Max retry attempts per sink and news item |
+| `TELEGRAM_NOTIFICATIONS_ENABLED` | `false` | Enable Telegram per-news notifications |
+| `TELEGRAM_BOT_TOKEN` | — | Telegram bot token |
+| `TELEGRAM_CHAT_ID` | — | Telegram target chat ID |
+| `TELEGRAM_TEMPLATE_NAME` | `default` | Telegram template identifier |
+| `TELEGRAM_PREFERRED_LANGUAGE` | — | Optional target language for Telegram human-readable content, for example `vi-VN` |
+| `WEBHOOK_NOTIFICATIONS_ENABLED` | `false` | Enable webhook per-news notifications |
+| `WEBHOOK_URL` | — | Webhook destination URL |
+| `WEBHOOK_AUTH_HEADER` | — | Optional auth header in `Header-Name: value` format |
+
+#### Telegram verification
+
+```bash
+# Example: enable Telegram notifications locally
+export NOTIFICATIONS_ENABLED=true
+export TELEGRAM_NOTIFICATIONS_ENABLED=true
+export TELEGRAM_BOT_TOKEN=<your-bot-token>
+export TELEGRAM_CHAT_ID=<your-chat-id>
+export TELEGRAM_TEMPLATE_NAME=default
+PYTHONPATH=src python -m opennews.main
+```
+
+When a batch persists new records, OpenNews sends one Telegram message per
+processed news item.
+
+If you want Telegram in Vietnamese, add:
+
+```bash
+export TELEGRAM_PREFERRED_LANGUAGE=vi-VN
+```
+
+Notes:
+
+- Telegram localization is currently Telegram-first; webhook payloads stay canonical.
+- Translation uses the existing LLM configuration. If translation is unavailable,
+  OpenNews falls back to canonical content and logs the requested and delivered
+  languages for that attempt.
+
+#### Webhook verification
+
+```bash
+# Example: enable webhook notifications locally
+export NOTIFICATIONS_ENABLED=true
+export WEBHOOK_NOTIFICATIONS_ENABLED=true
+export WEBHOOK_URL=https://example.com/opennews-hook
+export WEBHOOK_AUTH_HEADER="Authorization: Bearer <token>"
+PYTHONPATH=src python -m opennews.main
+```
+
+When a batch persists new records, OpenNews sends one webhook payload per
+processed news item. Telegram and webhook can be enabled together.
+
+If notifications are enabled but nothing is sent, check backend logs for:
+
+- `notification dispatch skipped: notifications_disabled`
+- `notification dispatch skipped: summary_not_eligible`
+- `notification dispatch skipped: no_enabled_sinks`
+
 ## News Input
 
 ### NewsNow API

@@ -48,6 +48,19 @@ class Settings:
     llm_config_path: str = os.getenv("LLM_CONFIG_PATH", "config/llm.yaml")
     sources_config_path: str = os.getenv("SOURCES_CONFIG_PATH", "config/sources.yaml")
 
+    # Notification settings
+    notifications_enabled: bool = os.getenv("NOTIFICATIONS_ENABLED", "false").lower() in ("true", "1", "yes")
+    notification_timeout_seconds: float = float(os.getenv("NOTIFICATION_TIMEOUT_SECONDS", "5"))
+    notification_max_attempts: int = int(os.getenv("NOTIFICATION_MAX_ATTEMPTS", "2"))
+    telegram_notifications_enabled: bool = os.getenv("TELEGRAM_NOTIFICATIONS_ENABLED", "false").lower() in ("true", "1", "yes")
+    telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    telegram_template_name: str = os.getenv("TELEGRAM_TEMPLATE_NAME", "default")
+    telegram_preferred_language: str = os.getenv("TELEGRAM_PREFERRED_LANGUAGE", "").strip()
+    webhook_notifications_enabled: bool = os.getenv("WEBHOOK_NOTIFICATIONS_ENABLED", "false").lower() in ("true", "1", "yes")
+    webhook_url: str = os.getenv("WEBHOOK_URL", "")
+    webhook_auth_header: str = os.getenv("WEBHOOK_AUTH_HEADER", "")
+
     # 分享图片功能
     share_api_enabled: bool = os.getenv("SHARE_API_ENABLED", "true").lower() in ("true", "1", "yes")
     share_scheduler_enabled: bool = os.getenv("SHARE_SCHEDULER_ENABLED", "true").lower() in ("true", "1", "yes")

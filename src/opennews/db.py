@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import psycopg2
@@ -21,6 +22,16 @@ from opennews.config import settings
 logger = logging.getLogger(__name__)
 
 _pool: pool.SimpleConnectionPool | None = None
+
+
+@dataclass(slots=True)
+class BatchInsertResult:
+    batch_id: int
+    inserted_records: list[dict] = field(default_factory=list)
+
+    @property
+    def record_count(self) -> int:
+        return len(self.inserted_records)
 
 
 def _get_pool() -> pool.SimpleConnectionPool:
@@ -115,8 +126,9 @@ def get_existing_urls(urls: list[str]) -> set[str]:
             return {row[0] for row in cur.fetchall()}
 
 
-def insert_batch(batch_ts: str, records: list[dict]) -> int:
-    """插入一个批次及其所有记录（跳过 URL 已存在的），返回 batch_id。"""
+def insert_batch(batch_ts: str, records: list[dict]) -> BatchInsertResult:
+    """插入一个批次及其所有记录（跳过 URL 已存在的），返回插入结果。"""
+    inserted_records: list[dict] = []
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -137,6 +149,8 @@ def insert_batch(batch_ts: str, records: list[dict]) -> int:
                     (batch_id, news_id, news_url, json.dumps(rec, ensure_ascii=False)),
                 )
                 inserted += cur.rowcount
+                if cur.rowcount:
+                    inserted_records.append(rec)
 
             # 更新实际插入数
             cur.execute(
@@ -145,7 +159,7 @@ def insert_batch(batch_ts: str, records: list[dict]) -> int:
             )
     logger.info("inserted batch %s (%d/%d records, %d skipped) → batch_id=%d",
                 batch_ts, inserted, len(records), len(records) - inserted, batch_id)
-    return batch_id
+    return BatchInsertResult(batch_id=batch_id, inserted_records=inserted_records)
 
 
 def insert_reports(batch_id: int, reports_data: list[dict]):
