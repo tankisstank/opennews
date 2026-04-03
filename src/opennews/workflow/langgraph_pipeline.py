@@ -88,7 +88,7 @@ class PipelineRuntime:
     )
     memory_agent: MemoryAgent = field(default=None)  # 延迟初始化
     graphrag_querier: GraphRAGQuerier = field(default=None)  # 延迟初始化
-    # Step4: ReportAgent
+    # Step4: ReportAgent + Notify Adapter
     report_agent: ReportAgent = field(
         default_factory=lambda: ReportAgent(
             weight_stock=settings.report_weight_stock,

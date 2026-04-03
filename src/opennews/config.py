@@ -72,7 +72,16 @@ class Settings:
     share_default_width: int = int(os.getenv("SHARE_DEFAULT_WIDTH", "390"))
     share_default_pixel_ratio: float = float(os.getenv("SHARE_DEFAULT_PIXEL_RATIO", "2"))
     share_default_background: str = os.getenv("SHARE_DEFAULT_BACKGROUND", "#f5f6f8")
-    share_render_timeout_ms: int = int(os.getenv("SHARE_RENDER_TIMEOUT_MS", "15000"))
+    # Notify adapter (Telegram / Webhook)
+    notify_enabled: bool = os.getenv("NOTIFY_ENABLED", "false").lower() in ("true", "1", "yes")
+    notify_telegram_enabled: bool = os.getenv("NOTIFY_TELEGRAM_ENABLED", "false").lower() in ("true", "1", "yes")
+    telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    notify_webhook_enabled: bool = os.getenv("NOTIFY_WEBHOOK_ENABLED", "false").lower() in ("true", "1", "yes")
+    webhook_url: str = os.getenv("WEBHOOK_URL", "")
+    notify_timeout_sec: int = int(os.getenv("NOTIFY_TIMEOUT_SEC", "15"))
+    notify_lang: str = os.getenv("NOTIFY_LANG", "vi")
+
 
 
 settings = Settings()
